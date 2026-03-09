@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gastos">
+  <meta name="theme-color" content="#1e40af">
+  <title>Gestión de Gastos</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%231e40af'/%3E%3Ctext x='256' y='340' text-anchor='middle' font-size='280' font-family='Arial' fill='white'%3E$%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+html{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+.glass-panel{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border:1px solid rgba(226,232,240,.8);box-shadow:0 4px 6px -1px rgba(0,0,0,.1)}
+.fade-in{animation:fadeIn .3s ease-in}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.suggestions{position:absolute;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:.5rem;box-shadow:0 10px 15px -3px rgba(0,0,0,.1);width:100%;max-height:250px;overflow-y:auto}
+.suggestion-item{padding:.75rem 1rem;cursor:pointer;border-bottom:1px solid #f1f5f9}
+.suggestion-item:hover,.suggestion-item.active{background:#eff6ff;color:#2563eb}
+.tab-active{border-bottom:3px solid #3b82f6;color:#2563eb;font-weight:600}
+.hidden{display:none!important}
+.comp-up{color:#ef4444}.comp-down{color:#10b981}.comp-neutral{color:#64748b}
+.comp-bar-container{display:flex;align-items:center;gap:.5rem;height:2rem}
+.comp-bar{height:100%;border-radius:.25rem;min-width:4px;transition:width .6s ease}
+.comp-bar-mes1{background:#3b82f6}.comp-bar-mes2{background:#f59e0b}
+.comp-highlight-row:hover{background:#f8fafc}
+.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+
+/* Mobile cards historial */
+.hist-card{background:#fff;border:1px solid #e2e8f0;border-radius:.85rem;padding:.85rem;box-shadow:0 1px 4px rgba(15,23,42,.03)}
+.hist-card-top{display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start}
+.hist-card-title{font-weight:700;color:#1e293b;line-height:1.2}
+.hist-card-sub{font-size:.75rem;color:#64748b;margin-top:.2rem}
+.hist-card-amount{font-weight:700;white-space:nowrap}
+.hist-card-meta{margin-top:.55rem;display:flex;flex-wrap:wrap;gap:.35rem}
+.hist-pill{font-size:.72rem;padding:.18rem .45rem;border-radius:999px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.hist-card-actions{margin-top:.6rem;display:flex;gap:.45rem}
+.hist-card-actions button{flex:1;min-height:42px;border-radius:.7rem;font-size:.88rem;border:1px solid #e2e8f0;background:#fff}
+
+/* Toast */
+.toast{position:fixed;top:5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.65rem 1.5rem;border-radius:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60;font-size:.9rem;font-weight:500;animation:fadeIn .3s ease}
+
+/* ===== MOBILE ===== */
+@media(max-width:768px){
+  body{background:#eef2f7}
+  nav{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.96);backdrop-filter:blur(8px)}
+  .nav-inner{display:flex!important;flex-direction:column;gap:.4rem;padding:.55rem .75rem .35rem;height:auto!important;min-height:0!important}
+  .nav-brand{gap:.45rem!important}
+  .brand-title{font-size:1.05rem!important}
+  #connection-status{font-size:.68rem!important;padding:.18rem .45rem!important;max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tab-bar{display:flex!important;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:.35rem!important;white-space:nowrap;padding-bottom:.15rem}
+  .tab-bar::-webkit-scrollbar{display:none}
+  .tab-bar button{flex:0 0 auto;min-height:44px;padding:.65rem .85rem!important;font-size:.9rem!important;font-weight:600}
+  .main-content{padding:.9rem .75rem calc(6.2rem + env(safe-area-inset-bottom,0px)) .75rem!important}
+  .glass-panel{border-radius:1rem!important;padding:1rem!important}
+  .grid-form{grid-template-columns:1fr!important;gap:.7rem!important}
+  .md-col-span-2{grid-column:auto!important}
+  #section-carga label{font-size:.88rem!important}
+  #section-carga input[type="text"],#section-carga input[type="date"],#section-carga input[type="number"],#section-carga select{min-height:50px;border-radius:.75rem!important;font-size:16px!important;padding-top:.65rem!important;padding-bottom:.65rem!important}
+  #acciones-carga{position:fixed;left:.75rem;right:.75rem;bottom:calc(.5rem + env(safe-area-inset-bottom,0px));z-index:50;display:grid!important;grid-template-columns:1fr auto;gap:.5rem!important;padding:.5rem;background:rgba(238,242,247,.94);backdrop-filter:blur(10px);border:1px solid rgba(203,213,225,.9);border-radius:1rem;box-shadow:0 8px 24px rgba(2,6,23,.12)}
+  #acciones-carga button{min-height:52px;border-radius:.8rem!important;font-size:.98rem;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+  #acciones-carga button:last-child{min-width:130px;padding:0 .9rem!important}
+  .suggestions{max-height:220px;border-radius:.75rem}
+  .suggestion-item{padding:.75rem!important}
+  #lista-sugerencias>div{padding:.7rem .75rem!important;border-radius:.75rem!important}
+  .resumen-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem!important}
+  .resumen-grid>div{display:block!important;background:#f8fafc;border:1px solid #e2e8f0;border-radius:.75rem;padding:.6rem}
+  .resumen-grid>div span:first-child{display:block;font-size:.72rem;color:#64748b!important}
+  .resumen-grid>div span:last-child{display:block;margin-top:.15rem;font-size:.95rem;line-height:1.15}
+  .desktop-table-wrap{display:none!important}
+  .mobile-cards{display:block!important}
+  .filter-row{display:grid!important;grid-template-columns:1fr!important;width:100%!important;gap:.55rem!important}
+  .comp-selectors{display:grid!important;grid-template-columns:1fr!important;width:100%!important;gap:.55rem!important}
+  .comp-selectors select{width:100%}
+  #section-dashboard .grid,#section-comparar .grid,#section-centros .grid{gap:1rem!important}
+  canvas{max-width:100%!important}
+}
+@media(min-width:769px){.mobile-cards{display:none!important}}
+</style>
+</head>
+<body class="text-slate-800">
+
+<!-- Loading -->
+<div id="loading" class="fixed inset-0 bg-white/80 flex items-center justify-center z-40 hidden">
+  <div class="flex items-center gap-3"><i class="fas fa-circle-notch fa-spin text-3xl text-blue-600"></i><span class="text-lg font-medium text-slate-700">Cargando...</span></div>
+</div>
+
+<!-- Setup -->
+<div id="setup-overlay" class="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl">
+    <div class="text-center mb-6">
+      <i class="fas fa-wallet text-5xl text-blue-600 mb-3"></i>
+      <h2 class="text-2xl font-bold">Configurar Gastos</h2>
+      <p class="text-slate-500 mt-2">Conectá con tu hoja de cálculo</p>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">URL del Apps Script</label>
+        <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec"
+          class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 focus:border-blue-500 font-mono text-sm">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Clave secreta</label>
+        <input type="password" id="setup-token" placeholder="La misma que pusiste en Codigo.gs"
+          class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 focus:border-blue-500 text-center text-lg">
+      </div>
+      <button type="button" onclick="saveSetup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">
+        <i class="fas fa-plug mr-2"></i>Conectar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="nav-inner flex justify-between h-16 items-center">
+      <div class="nav-brand flex items-center gap-3">
+        <i class="fas fa-wallet text-2xl text-blue-600"></i>
+        <span class="brand-title font-bold text-xl">Gastos</span>
+        <span id="connection-status" class="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">—</span>
+      </div>
+      <div class="tab-bar flex gap-3 md:gap-6 text-sm overflow-x-auto no-scrollbar py-1">
+        <button type="button" onclick="showTab('carga')" id="tab-carga" class="tab-active py-5 px-2">Carga</button>
+        <button type="button" onclick="showTab('historial')" id="tab-historial" class="py-5 px-2 text-slate-600">Historial</button>
+        <button type="button" onclick="showTab('dashboard')" id="tab-dashboard" class="py-5 px-2 text-slate-600">Dashboard</button>
+        <button type="button" onclick="showTab('comparar')" id="tab-comparar" class="py-5 px-2 text-slate-600">Comparar</button>
+        <button type="button" onclick="showTab('centros')" id="tab-centros" class="py-5 px-2 text-slate-600">Centros</button>
+        <button type="button" onclick="showTab('config')" id="tab-config" class="py-5 px-2 text-slate-600"><i class="fas fa-cog"></i></button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- ==================== CARGA ==================== -->
+  <div id="section-carga" class="fade-in">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 glass-panel rounded-2xl p-6">
+        <h2 class="text-2xl font-bold mb-6">Nuevo Gasto</h2>
+        <form onsubmit="return false;" class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 grid-form">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
+              <input type="date" id="fecha" required class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Centro de Gasto</label>
+              <input type="text" id="centro" list="centros-list" required class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500" oninput="filtrarSugerencias()">
+              <datalist id="centros-list"></datalist>
+            </div>
+          </div>
+          <div class="relative">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Concepto</label>
+            <input type="text" id="concepto" required class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500" oninput="mostrarSugerencias(this.value)" onkeydown="navegarSugerencias(event)">
+            <div id="suggestions" class="suggestions hidden"></div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 grid-form">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+              <select id="tipo" class="w-full px-4 py-2 rounded-lg border border-slate-300"><option value="F">Fijo</option><option value="V">Variable</option></select>
+            </div>
+            <div class="md:col-span-2 md-col-span-2">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Método de Pago</label>
+              <select id="metodo" class="w-full px-4 py-2 rounded-lg border border-slate-300">
+                <option value="Macro Manual">Macro Manual</option>
+                <option value="Macro transferencia">Macro Transferencia</option>
+                <option value="VISA MACRO">VISA Macro</option>
+                <option value="VISA BBVA">VISA BBVA</option>
+                <option value="VISA GALICIA">VISA Galicia</option>
+                <option value="MASTER BBVA">Master BBVA</option>
+                <option value="AMEX">AMEX</option>
+                <option value="Ualá">Ualá</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Debito CA BBVA">Débito CA BBVA</option>
+                <option value="VEP - GALICIA">VEP - Galicia</option>
+                <option value="Macro tarjeta debito">Macro Tarjeta Débito</option>
+                <option value="Pagado por el año">Pagado por el año</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Importe ($)</label>
+            <input type="number" id="importe" required min="0" step="0.01" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 text-lg font-semibold">
+            <p id="avg-suggestion" class="text-xs text-slate-500 mt-1 hidden"></p>
+          </div>
+          <div id="acciones-carga" class="flex flex-col md:flex-row gap-3">
+            <button type="button" onclick="guardarGasto()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all"><i class="fas fa-save mr-2"></i>Guardar</button>
+            <button type="button" onclick="cargarFijosMensuales()" class="px-6 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all"><i class="fas fa-magic mr-2"></i>Cargar Fijos</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Panel lateral -->
+      <div class="space-y-6">
+        <div class="glass-panel rounded-2xl p-6">
+          <h3 class="font-bold text-slate-800 mb-4 flex justify-between">
+            <span><i class="fas fa-clock text-amber-500 mr-1"></i>Fijos Pendientes</span>
+            <span id="count-sugerencias" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">0</span>
+          </h3>
+          <div id="lista-sugerencias" class="space-y-2 max-h-80 overflow-y-auto">
+            <p class="text-sm text-slate-400 italic">Cargá datos para ver fijos pendientes</p>
+          </div>
+        </div>
+        <div class="glass-panel rounded-2xl p-6">
+          <h3 class="font-bold text-slate-800 mb-4">Resumen del Mes</h3>
+          <div class="space-y-3 resumen-grid">
+            <div class="flex justify-between"><span class="text-slate-600">Total:</span><span id="resumen-total" class="font-bold text-blue-600">$0</span></div>
+            <div class="flex justify-between"><span class="text-slate-600">Cantidad:</span><span id="resumen-cantidad" class="font-bold">0</span></div>
+            <div class="flex justify-between"><span class="text-slate-600">Promedio:</span><span id="resumen-promedio" class="font-bold">$0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== HISTORIAL ==================== -->
+  <div id="section-historial" class="hidden fade-in">
+    <div class="glass-panel rounded-2xl p-6">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+        <h2 class="text-2xl font-bold">Historial</h2>
+        <div class="filter-row flex flex-wrap gap-2 w-full lg:w-auto">
+          <input type="text" id="buscar-historial" placeholder="Buscar..." class="px-4 py-2 rounded-lg border border-slate-300 text-sm w-full sm:w-auto" oninput="filtrarHistorial()">
+          <select id="filtro-centro" onchange="filtrarHistorial()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm"><option value="todos">Todos los centros</option></select>
+          <select id="filtro-tipo" onchange="filtrarHistorial()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm"><option value="todos">Todos los tipos</option><option value="F">Fijos</option><option value="V">Variables</option></select>
+          <select id="filtro-metodo" onchange="filtrarHistorial()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm"><option value="todos">Todos los métodos</option></select>
+          <select id="filtro-mes-historial" onchange="filtrarHistorial()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm"><option value="todos">Todos los meses</option></select>
+          <button type="button" onclick="limpiarFiltros()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm hover:bg-slate-300"><i class="fas fa-undo mr-1"></i>Limpiar</button>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mb-4 text-sm text-slate-600">
+        <span id="resultados-count">0 registros</span>
+        <button type="button" onclick="exportarHistorialFiltrado()" class="text-emerald-600 hover:text-emerald-800"><i class="fas fa-download mr-1"></i>Exportar</button>
+      </div>
+      <div id="historial-cards-mobile" class="mobile-cards space-y-3 mb-4"></div>
+      <div class="overflow-x-auto desktop-table-wrap">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr><th class="py-3 px-4 text-left font-semibold">Fecha</th><th class="py-3 px-4 text-left font-semibold">Centro</th><th class="py-3 px-4 text-left font-semibold">Concepto</th><th class="py-3 px-4 text-left font-semibold">Tipo</th><th class="py-3 px-4 text-left font-semibold">Método</th><th class="py-3 px-4 text-right font-semibold">Importe</th><th class="py-3 px-4 text-center font-semibold">Acc.</th></tr>
+          </thead>
+          <tbody id="tabla-historial" class="divide-y divide-slate-100"><tr><td colspan="7" class="py-8 text-center text-slate-400">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== DASHBOARD ==================== -->
+  <div id="section-dashboard" class="hidden fade-in space-y-6">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass-panel rounded-2xl p-5 bg-gradient-to-br from-blue-600 to-blue-700 text-white"><p class="text-blue-100 text-xs">Total Histórico</p><h3 class="text-xl md:text-3xl font-bold" id="dash-total">$0</h3></div>
+      <div class="glass-panel rounded-2xl p-5 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white"><p class="text-emerald-100 text-xs">Promedio Mensual</p><h3 class="text-xl md:text-3xl font-bold" id="dash-promedio">$0</h3></div>
+      <div class="glass-panel rounded-2xl p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white"><p class="text-purple-100 text-xs">Gastos Fijos</p><h3 class="text-xl md:text-3xl font-bold" id="dash-fijos">0%</h3></div>
+      <div class="glass-panel rounded-2xl p-5 bg-gradient-to-br from-amber-500 to-amber-600 text-white"><p class="text-amber-100 text-xs">Transacciones</p><h3 class="text-xl md:text-3xl font-bold" id="dash-count">0</h3></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4">Evolución Mensual</h3><canvas id="chart-evolucion" height="250"></canvas></div>
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4">Por Centro de Gasto</h3><canvas id="chart-centros" height="250"></canvas></div>
+      <div class="glass-panel rounded-2xl p-6 lg:col-span-2">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+          <h3 class="font-bold">Evolución de Concepto</h3>
+          <div class="flex gap-2 w-full md:w-auto">
+            <select id="evolucion-concepto" onchange="renderEvolucionConcepto()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm flex-1 md:flex-none"><option value="">Seleccionar...</option></select>
+            <button type="button" onclick="renderEvolucionConcepto()" class="px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><i class="fas fa-chart-line"></i></button>
+          </div>
+        </div>
+        <canvas id="chart-evolucion-concepto" height="250"></canvas>
+        <div id="evolucion-stats" class="mt-4 grid grid-cols-3 gap-4 text-center text-sm"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== COMPARAR ==================== -->
+  <div id="section-comparar" class="hidden fade-in space-y-6">
+    <div class="glass-panel rounded-2xl p-6">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 class="text-2xl font-bold">Comparar Meses</h2>
+        <div class="comp-selectors flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span><select id="comp-mes1" onchange="renderComparar()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium"><option value="">Mes A...</option></select></div>
+          <span class="text-slate-400 font-bold hidden md:inline">vs</span>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span><select id="comp-mes2" onchange="renderComparar()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium"><option value="">Mes B...</option></select></div>
+          <select id="comp-vista" onchange="renderComparar()" class="px-4 py-2 rounded-lg border border-slate-300 text-sm"><option value="centro">Por Centro</option><option value="concepto">Por Concepto</option><option value="tipo">Por Tipo</option><option value="metodo">Por Método</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="glass-panel rounded-2xl p-5 text-center"><p class="text-xs text-slate-500 mb-1">Total Mes A</p><h3 class="text-xl md:text-2xl font-bold text-blue-600" id="comp-total1">$0</h3></div>
+      <div class="glass-panel rounded-2xl p-5 text-center"><p class="text-xs text-slate-500 mb-1">Total Mes B</p><h3 class="text-xl md:text-2xl font-bold text-amber-600" id="comp-total2">$0</h3></div>
+      <div class="glass-panel rounded-2xl p-5 text-center"><p class="text-xs text-slate-500 mb-1">Diferencia</p><h3 class="text-xl md:text-2xl font-bold" id="comp-diff">$0</h3></div>
+      <div class="glass-panel rounded-2xl p-5 text-center"><p class="text-xs text-slate-500 mb-1">Variación</p><h3 class="text-xl md:text-2xl font-bold" id="comp-pct">0%</h3></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4">Comparación</h3><canvas id="chart-comp-barras" height="280"></canvas></div>
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4">Distribución</h3><div class="grid grid-cols-2 gap-4"><div><p class="text-sm font-medium text-blue-600 mb-2 text-center" id="comp-donut-label1">A</p><canvas id="chart-comp-donut1" height="200"></canvas></div><div><p class="text-sm font-medium text-amber-600 mb-2 text-center" id="comp-donut-label2">B</p><canvas id="chart-comp-donut2" height="200"></canvas></div></div></div>
+    </div>
+    <div class="glass-panel rounded-2xl p-6">
+      <h3 class="font-bold mb-4">Detalle</h3>
+      <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-50 border-b border-slate-200"><tr><th class="py-3 px-4 text-left font-semibold">Categoría</th><th class="py-3 px-4 text-right font-semibold text-blue-600">Mes A</th><th class="py-3 px-4 text-right font-semibold text-amber-600">Mes B</th><th class="py-3 px-4 text-right font-semibold">Dif.</th><th class="py-3 px-4 text-right font-semibold">%</th><th class="py-3 px-4 font-semibold hidden md:table-cell" style="min-width:200px">Visual</th></tr></thead><tbody id="comp-tabla-body" class="divide-y divide-slate-100"><tr><td colspan="6" class="py-8 text-center text-slate-400">Seleccioná dos meses</td></tr></tbody><tfoot id="comp-tabla-foot" class="bg-slate-50 border-t-2 border-slate-300 font-bold"></tfoot></table></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4 text-amber-600"><i class="fas fa-plus-circle mr-2"></i>Nuevos en B</h3><div id="comp-nuevos" class="space-y-2 max-h-64 overflow-y-auto"><p class="text-sm text-slate-400 italic">Seleccioná dos meses</p></div></div>
+      <div class="glass-panel rounded-2xl p-6"><h3 class="font-bold mb-4 text-blue-600"><i class="fas fa-minus-circle mr-2"></i>Solo en A</h3><div id="comp-eliminados" class="space-y-2 max-h-64 overflow-y-auto"><p class="text-sm text-slate-400 italic">Seleccioná dos meses</p></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== CENTROS ==================== -->
+  <div id="section-centros" class="hidden fade-in">
+    <div class="glass-panel rounded-2xl p-6">
+      <h2 class="text-2xl font-bold mb-6">Centros de Gasto</h2>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-50 rounded-xl p-6"><h3 class="font-bold mb-4">Agregar</h3><div class="flex gap-2"><input type="text" id="nuevo-centro" placeholder="Nombre" class="flex-1 px-4 py-2 rounded-lg border border-slate-300"><button type="button" onclick="agregarCentro()" class="px-4 bg-blue-600 text-white rounded-lg"><i class="fas fa-plus"></i></button></div></div>
+        <div class="bg-slate-50 rounded-xl p-6"><h3 class="font-bold mb-4">Unificar</h3><select id="unificar-desde" class="w-full px-4 py-2 rounded-lg border border-slate-300 mb-2"><option value="">Reemplazar...</option></select><select id="unificar-hacia" class="w-full px-4 py-2 rounded-lg border border-slate-300 mb-3"><option value="">Correcto...</option></select><button type="button" onclick="unificarCentros()" class="w-full bg-amber-500 text-white py-2 rounded-lg"><i class="fas fa-compress-alt mr-2"></i>Unificar</button></div>
+      </div>
+      <div class="mt-6"><h3 class="font-bold mb-4">Existentes <span id="total-centros" class="text-sm font-normal text-slate-500"></span></h3><div id="lista-centros" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"></div></div>
+    </div>
+  </div>
+
+  <!-- ==================== CONFIG ==================== -->
+  <div id="section-config" class="hidden fade-in">
+    <div class="glass-panel rounded-2xl p-6 max-w-2xl">
+      <h2 class="text-2xl font-bold mb-6">Configuración</h2>
+      <div class="space-y-4">
+        <div><label class="block text-sm font-medium text-slate-700 mb-1">URL del API</label><div class="flex gap-2"><input type="text" id="config-api-url" class="flex-1 px-4 py-2 rounded-lg border border-slate-300 font-mono text-sm"><button type="button" onclick="saveUrlFromConfig()" class="px-4 bg-blue-600 text-white rounded-lg"><i class="fas fa-save"></i></button></div></div>
+        <div><label class="block text-sm font-medium text-slate-700 mb-1">Token</label><div class="flex gap-2"><input type="password" id="config-token" class="flex-1 px-4 py-2 rounded-lg border border-slate-300 text-sm"><button type="button" onclick="saveTokenFromConfig()" class="px-4 bg-blue-600 text-white rounded-lg"><i class="fas fa-save"></i></button></div></div>
+        <div class="flex flex-col md:flex-row gap-3 pt-2">
+          <button type="button" onclick="cargarDatos()" class="px-6 py-2 bg-slate-600 text-white rounded-lg"><i class="fas fa-sync mr-2"></i>Recargar</button>
+          <button type="button" onclick="exportarCSV()" class="px-6 py-2 bg-emerald-600 text-white rounded-lg"><i class="fas fa-download mr-2"></i>CSV</button>
+          <button type="button" onclick="borrarConfig()" class="px-6 py-2 bg-red-100 text-red-700 rounded-lg"><i class="fas fa-trash mr-2"></i>Borrar Config</button>
+        </div>
+        <div class="bg-blue-50 rounded-lg p-4 border border-blue-200 mt-4">
+          <h4 class="font-bold text-blue-800 mb-2"><i class="fas fa-mobile-alt mr-2"></i>Instalar en iPhone</h4>
+          <p class="text-sm text-blue-700">Safari → <i class="fas fa-share-square"></i> Compartir → <strong>"Agregar a Inicio"</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ========================================
+   ESTADO GLOBAL
+======================================== */
+let allData = [], charts = {}, suggestionIndex = -1, patrones = [];
+let API_URL = localStorage.getItem('gastos_api_url') || '';
+let API_TOKEN = localStorage.getItem('gastos_api_token') || '';
+
+const $ = id => document.getElementById(id);
+const safeNumber = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const formatearNumero = n => parseInt(n || 0, 10).toLocaleString('es-AR');
+const escapeAttr = s => String(s ?? '').replace(/'/g, "\\'");
+const csvEscape = v => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+const getMesKey = f => f ? String(f).slice(0, 7) : '';
+const uniqueSorted = vals => [...new Set(vals.filter(Boolean))].sort();
+const destroyChart = n => { if (charts[n]) { charts[n].destroy(); charts[n] = null; } };
+const showLoading = show => $('loading')?.classList.toggle('hidden', !show);
+
+function formatMesLabel(m) {
+  if (!m) return '';
+  const n = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const [a, ms] = m.split('-');
+  return `${n[parseInt(ms,10)-1]} ${a}`;
+}
+
+function aggregateBy(items, keyFn, valFn = x => safeNumber(x.Importe)) {
+  const acc = Object.create(null);
+  for (const i of items) { const k = keyFn(i); acc[k] = (acc[k]||0) + valFn(i); }
+  return acc;
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 1500);
+  setTimeout(() => t.remove(), 1800);
+}
+
+function descargarCSV(nombre, contenido) {
+  const blob = new Blob([contenido], { type: 'text/csv' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob); link.download = nombre; link.click();
+}
+
+/* ========================================
+   API
+======================================== */
+async function apiGet(action, params = {}) {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('token', API_TOKEN);
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, typeof v === 'object' ? encodeURIComponent(JSON.stringify(v)) : v);
+  }
+  const r = await fetch(url.toString(), { redirect: 'follow' });
+  return r.json();
+}
+
+async function apiPost(action, body) {
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, token: API_TOKEN, ...body }),
+    redirect: 'follow'
+  });
+  return r.json();
+}
+
+/* ========================================
+   SETUP / CONFIG
+======================================== */
+function checkSetup() {
+  if (!API_URL || !API_TOKEN) { $('setup-overlay').classList.remove('hidden'); return; }
+  $('setup-overlay').classList.add('hidden');
+  $('config-api-url').value = API_URL;
+  $('config-token').value = API_TOKEN;
+  cargarDatos();
+}
+
+function saveSetup() {
+  const url = $('setup-url').value.trim();
+  const token = $('setup-token').value.trim();
+  if (!url.startsWith('https://script.google.com/')) { alert('URL inválida'); return; }
+  if (!token) { alert('Ingresá una clave'); return; }
+  API_URL = url; API_TOKEN = token;
+  localStorage.setItem('gastos_api_url', url);
+  localStorage.setItem('gastos_api_token', token);
+  $('setup-overlay').classList.add('hidden');
+  $('config-api-url').value = url; $('config-token').value = token;
+  cargarDatos();
+}
+
+function saveUrlFromConfig() { API_URL = $('config-api-url').value.trim(); localStorage.setItem('gastos_api_url', API_URL); toast('URL guardada'); }
+function saveTokenFromConfig() { API_TOKEN = $('config-token').value.trim(); localStorage.setItem('gastos_api_token', API_TOKEN); toast('Token guardado'); }
+function borrarConfig() { if (!confirm('¿Borrar configuración?')) return; localStorage.clear(); location.reload(); }
+
+/* ========================================
+   INIT
+======================================== */
+document.addEventListener('DOMContentLoaded', () => {
+  if ($('fecha')) $('fecha').valueAsDate = new Date();
+  checkSetup();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+});
+
+/* ========================================
+   CARGAR DATOS
+======================================== */
+async function cargarDatos() {
+  if (!API_URL) return;
+  showLoading(true);
+  try {
+    const result = await apiGet('getAll');
+    if (result.error) {
+      if (result.error.includes('Token')) { alert('Clave incorrecta'); borrarConfig(); return; }
+      alert('Error: ' + result.error);
+      $('connection-status').textContent = 'Error';
+      $('connection-status').className = 'text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full';
+      return;
+    }
+    allData = Array.isArray(result.data) ? result.data : [];
+    $('connection-status').textContent = `${allData.length} reg.`;
+    $('connection-status').className = 'text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full';
+    procesarPatrones(); actualizarSugerencias(); actualizarResumen();
+  } catch (e) {
+    $('connection-status').textContent = 'Sin conexión';
+    $('connection-status').className = 'text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full';
+  } finally { showLoading(false); }
+}
+
+/* ========================================
+   GUARDAR / BORRAR
+======================================== */
+async function guardarGasto() {
+  const record = { Fecha: $('fecha').value, Centro: $('centro').value, Tipo: $('tipo').value, Concepto: $('concepto').value, Metodo: $('metodo').value, Importe: safeNumber($('importe').value) };
+  if (!record.Centro || !record.Concepto || record.Importe === 0) { alert('Completá los campos'); return; }
+  showLoading(true);
+  try {
+    const r = await apiGet('add', { data: record });
+    if (r.success) { $('concepto').value = ''; $('importe').value = ''; $('avg-suggestion')?.classList.add('hidden'); await cargarDatos(); if (navigator.vibrate) navigator.vibrate(50); toast('¡Guardado!'); }
+    else alert('Error: ' + (r.error || '?'));
+  } catch (e) { alert('Error: ' + e.message); } finally { showLoading(false); }
+}
+
+async function borrarGasto(id, concepto) {
+  if (!confirm(`¿Borrar "${concepto}"?`)) return;
+  showLoading(true);
+  try { const r = await apiGet('delete', { id }); if (r.success) { await cargarDatos(); toast('Borrado'); } else alert(r.error); }
+  catch (e) { alert(e.message); } finally { showLoading(false); }
+}
+
+/* ========================================
+   TABS
+======================================== */
+function showTab(tab) {
+  ['carga','historial','dashboard','comparar','centros','config'].forEach(t => {
+    $('section-'+t)?.classList.add('hidden');
+    const b = $('tab-'+t); if (b) { b.classList.remove('tab-active'); b.classList.add('text-slate-600'); }
+  });
+  $('section-'+tab)?.classList.remove('hidden');
+  const b = $('tab-'+tab); if (b) { b.classList.add('tab-active'); b.classList.remove('text-slate-600'); }
+  if (tab==='historial') renderHistorial();
+  if (tab==='dashboard') renderDashboard();
+  if (tab==='comparar') initComparar();
+  if (tab==='centros') renderCentros();
+}
+
+/* ========================================
+   PATRONES
+======================================== */
+function procesarPatrones() {
+  const map = new Map();
+  for (const g of allData) {
+    const key = `${g.Concepto||''}|${g.Centro||''}`;
+    if (!map.has(key)) map.set(key, { concepto:g.Concepto, centro:g.Centro, tipo:g.Tipo, metodo:g.Metodo, freq:0, importes:[] });
+    const p = map.get(key); p.freq++; const imp = safeNumber(g.Importe); if (imp>0) p.importes.push(imp);
+  }
+  patrones = [];
+  for (const p of map.values()) { const avg = p.importes.length ? Math.round(p.importes.reduce((a,b)=>a+b,0)/p.importes.length) : 0; patrones.push({ concepto:p.concepto, centro:p.centro, tipo:p.tipo, metodo:p.metodo, frecuencia:p.freq, promedio:avg }); }
+  patrones.sort((a,b)=>b.frecuencia-a.frecuencia);
+
+  const centros = uniqueSorted(allData.map(g=>g.Centro));
+  const metodos = uniqueSorted(allData.map(g=>g.Metodo));
+  const meses = uniqueSorted(allData.map(g=>getMesKey(g.Fecha)));
+  $('centros-list').innerHTML = centros.map(c=>`<option value="${c}">`).join('');
+  $('filtro-centro').innerHTML = '<option value="todos">Todos los centros</option>' + centros.map(c=>`<option value="${c}">${c}</option>`).join('');
+  $('filtro-metodo').innerHTML = '<option value="todos">Todos los métodos</option>' + metodos.map(m=>`<option value="${m}">${m}</option>`).join('');
+  $('filtro-mes-historial').innerHTML = '<option value="todos">Todos los meses</option>' + meses.map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+
+/* ========================================
+   AUTOCOMPLETADO
+======================================== */
+function mostrarSugerencias(v) {
+  const div = $('suggestions'); suggestionIndex = -1;
+  if (!v || v.length < 2) { div.classList.add('hidden'); return; }
+  const q = v.toLowerCase();
+  const m = patrones.filter(p=>(p.concepto||'').toLowerCase().includes(q)||(p.centro||'').toLowerCase().includes(q)).slice(0,6);
+  if (!m.length) { div.classList.add('hidden'); return; }
+  div.innerHTML = m.map(p=>`<div class="suggestion-item" onclick="seleccionarPatron('${escapeAttr(p.concepto)}','${escapeAttr(p.centro)}')"><div class="flex justify-between"><div><div class="font-semibold">${p.concepto}</div><div class="text-xs text-slate-500">${p.centro}</div></div><div class="text-right"><div class="text-xs font-bold text-blue-600">${p.frecuencia}x</div>${p.promedio>0?`<div class="text-xs text-slate-500">~$${formatearNumero(p.promedio)}</div>`:''}</div></div></div>`).join('');
+  div.classList.remove('hidden');
+}
+function navegarSugerencias(e) {
+  const items = document.querySelectorAll('.suggestion-item'); if (!items.length) return;
+  if (e.key==='ArrowDown'){e.preventDefault();suggestionIndex=Math.min(suggestionIndex+1,items.length-1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();suggestionIndex=Math.max(suggestionIndex-1,0);}
+  else if(e.key==='Enter'&&suggestionIndex>=0){e.preventDefault();items[suggestionIndex].click();return;}
+  else if(e.key==='Escape'){$('suggestions').classList.add('hidden');return;}
+  items.forEach((it,i)=>{it.classList.toggle('active',i===suggestionIndex);if(i===suggestionIndex)it.scrollIntoView({block:'nearest'});});
+}
+function seleccionarPatron(concepto,centro) {
+  const p = patrones.find(x=>x.concepto===concepto&&x.centro===centro); if(!p) return;
+  $('concepto').value=p.concepto; $('centro').value=p.centro; $('tipo').value=p.tipo; $('metodo').value=p.metodo;
+  $('suggestions').classList.add('hidden');
+  if(p.promedio>0){$('avg-suggestion').textContent='Promedio: $'+formatearNumero(p.promedio);$('avg-suggestion').classList.remove('hidden');}
+  $('importe').focus();
+}
+function filtrarSugerencias() { if ($('concepto').value.length >= 2) mostrarSugerencias($('concepto').value); }
+
+/* ========================================
+   FIJOS PENDIENTES + RESUMEN
+======================================== */
+function actualizarSugerencias() {
+  const hoy = new Date(), mesActual = hoy.toISOString().slice(0,7);
+  const prev = new Date(hoy.getFullYear(), hoy.getMonth()-1, 1), mesAnterior = prev.toISOString().slice(0,7);
+  const label = formatMesLabel(mesAnterior);
+  const fijos = new Map(); const ANUAL = 'pagado por el año';
+  let excluidos = 0, impExcluido = 0;
+
+  for (const g of allData) {
+    if (g.Tipo!=='F'||!g.Fecha||!g.Fecha.startsWith(mesAnterior)) continue;
+    if ((g.Metodo||'').trim().toLowerCase()===ANUAL) { excluidos++; impExcluido+=safeNumber(g.Importe); continue; }
+    const key = `${g.Concepto}|${g.Centro}`;
+    if (fijos.has(key)) fijos.get(key).importe += safeNumber(g.Importe);
+    else fijos.set(key, { concepto:g.Concepto, centro:g.Centro, tipo:g.Tipo, metodo:g.Metodo, importe:safeNumber(g.Importe) });
+  }
+
+  const cargados = new Set();
+  for (const g of allData) { if (g.Fecha&&g.Fecha.startsWith(mesActual)) cargados.add(`${g.Concepto}|${g.Centro}`); }
+
+  const pend = [];
+  for (const [k,v] of fijos) { if (!cargados.has(k)) pend.push(v); }
+  pend.sort((a,b)=>b.importe-a.importe);
+
+  $('count-sugerencias').textContent = pend.length;
+  const div = $('lista-sugerencias');
+  if (!pend.length) { div.innerHTML = `<p class="text-sm text-emerald-600"><i class="fas fa-check-circle mr-2"></i>¡Todos los fijos de ${label} cargados!</p>`; return; }
+
+  const tot = pend.reduce((s,p)=>s+p.importe,0);
+  div.innerHTML = `<div class="text-xs text-slate-500 mb-2 flex justify-between"><span>Pendientes vs ${label}</span><span class="font-bold text-red-600">$${formatearNumero(tot)}</span></div>` +
+    (excluidos>0?`<div class="text-xs text-slate-400 mb-2 italic"><i class="fas fa-info-circle mr-1"></i>${excluidos} anual(es) excluidos ($${formatearNumero(impExcluido)})</div>`:'') +
+    pend.map(s=>`<div class="flex justify-between items-center p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer transition-colors" onclick="seleccionarFijo('${escapeAttr(s.concepto)}','${escapeAttr(s.centro)}','${escapeAttr(s.tipo)}','${escapeAttr(s.metodo)}',${s.importe})"><div class="min-w-0 flex-1 mr-2"><div class="font-medium text-sm truncate">${s.concepto}</div><div class="text-xs text-slate-500 truncate">${s.centro}</div></div><div class="text-sm font-bold text-amber-700 whitespace-nowrap">$${formatearNumero(s.importe)}</div></div>`).join('');
+}
+
+function seleccionarFijo(c,ce,t,m,i) { $('concepto').value=c; $('centro').value=ce; $('tipo').value=t; $('metodo').value=m; $('importe').value=i; $('suggestions').classList.add('hidden'); $('avg-suggestion').classList.add('hidden'); $('importe').focus(); }
+
+function actualizarResumen() {
+  const mes = new Date().toISOString().slice(0,7); let total=0, cant=0;
+  for (const g of allData) { if (g.Fecha&&g.Fecha.startsWith(mes)) { total+=safeNumber(g.Importe); cant++; } }
+  $('resumen-total').textContent = '$'+formatearNumero(total);
+  $('resumen-cantidad').textContent = cant;
+  $('resumen-promedio').textContent = '$'+formatearNumero(cant?total/cant:0);
+}
+
+function cargarFijosMensuales() { alert(`${patrones.filter(p=>p.tipo==='F'&&p.frecuencia>=2).length} gastos fijos encontrados.\n\nPróximamente: carga automática.`); }
+
+/* ========================================
+   HISTORIAL
+======================================== */
+function getFiltrados() {
+  const txt=($('buscar-historial')?.value||'').toLowerCase(), mes=$('filtro-mes-historial')?.value||'todos', centro=$('filtro-centro')?.value||'todos', tipo=$('filtro-tipo')?.value||'todos', metodo=$('filtro-metodo')?.value||'todos';
+  return allData.filter(g=>{
+    if(txt&&!(g.Concepto||'').toLowerCase().includes(txt)&&!(g.Centro||'').toLowerCase().includes(txt)) return false;
+    if(mes!=='todos'&&(!g.Fecha||!g.Fecha.startsWith(mes))) return false;
+    if(centro!=='todos'&&g.Centro!==centro) return false;
+    if(tipo!=='todos'&&g.Tipo!==tipo) return false;
+    if(metodo!=='todos'&&g.Metodo!==metodo) return false;
+    return true;
+  }).sort((a,b)=>new Date(b.Fecha||0)-new Date(a.Fecha||0));
+}
+
+function renderHistorial() {
+  const f = getFiltrados(), top = f.slice(0,100);
+  $('resultados-count').textContent = `${f.length} registros${f.length>100?' (100 mostrados)':''}`;
+  const tbody = $('tabla-historial'), mob = $('historial-cards-mobile');
+  if (!f.length) { tbody.innerHTML='<tr><td colspan="7" class="py-8 text-center text-slate-400">Sin resultados</td></tr>'; if(mob)mob.innerHTML=''; return; }
+
+  tbody.innerHTML = top.map(g=>`<tr class="hover:bg-slate-50"><td class="py-3 px-4">${g.Fecha||'-'}</td><td class="py-3 px-4 font-medium">${g.Centro||''}</td><td class="py-3 px-4">${g.Concepto||''}</td><td class="py-3 px-4"><span class="px-2 py-1 rounded text-xs ${g.Tipo==='F'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${g.Tipo||''}</span></td><td class="py-3 px-4 text-xs text-slate-500">${g.Metodo||''}</td><td class="py-3 px-4 text-right font-mono">$${formatearNumero(g.Importe)}</td><td class="py-3 px-4 text-center"><button onclick="editarGasto('${g.ID}')" class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="borrarGasto('${g.ID}','${escapeAttr(g.Concepto)}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+
+  if (mob) mob.innerHTML = top.map(g=>`<div class="hist-card"><div class="hist-card-top"><div><div class="hist-card-title">${g.Concepto||''}</div><div class="hist-card-sub">${g.Fecha||'-'} · ${g.Centro||''}</div></div><div class="hist-card-amount ${g.Tipo==='F'?'text-emerald-700':'text-amber-700'}">$${formatearNumero(g.Importe)}</div></div><div class="hist-card-meta"><span class="hist-pill">${g.Tipo==='F'?'Fijo':'Variable'}</span><span class="hist-pill">${g.Metodo||''}</span></div><div class="hist-card-actions"><button onclick="editarGasto('${g.ID}')"><i class="fas fa-edit mr-1"></i>Editar</button><button onclick="borrarGasto('${g.ID}','${escapeAttr(g.Concepto)}')" class="text-red-600"><i class="fas fa-trash mr-1"></i>Borrar</button></div></div>`).join('');
+}
+
+function filtrarHistorial(){renderHistorial();}
+function limpiarFiltros(){$('buscar-historial').value='';$('filtro-centro').value='todos';$('filtro-tipo').value='todos';$('filtro-metodo').value='todos';$('filtro-mes-historial').value='todos';renderHistorial();}
+function exportarHistorialFiltrado(){const f=getFiltrados();let csv='Fecha,Centro,Tipo,Concepto,Metodo,Importe\n';for(const g of f)csv+=[csvEscape(g.Fecha),csvEscape(g.Centro),csvEscape(g.Tipo),csvEscape(g.Concepto),csvEscape(g.Metodo),csvEscape(g.Importe||0)].join(',')+'\n';descargarCSV('historial.csv',csv);}
+function editarGasto(id){const g=allData.find(x=>x.ID===id);if(!g)return;$('fecha').value=g.Fecha||'';$('centro').value=g.Centro||'';$('concepto').value=g.Concepto||'';$('tipo').value=g.Tipo||'V';$('metodo').value=g.Metodo||'Efectivo';$('importe').value=g.Importe||'';showTab('carga');toast('Editá y guardá');}
+function exportarCSV(){let csv='Fecha,Centro,Tipo,Concepto,Metodo,Importe,ID\n';for(const g of allData)csv+=[csvEscape(g.Fecha),csvEscape(g.Centro),csvEscape(g.Tipo),csvEscape(g.Concepto),csvEscape(g.Metodo),csvEscape(g.Importe||0),csvEscape(g.ID)].join(',')+'\n';descargarCSV('gastos.csv',csv);}
+
+/* ========================================
+   DASHBOARD
+======================================== */
+function renderDashboard() {
+  let total=0, fijos=0; const porMes=Object.create(null), porCentro=Object.create(null);
+  for(const g of allData){const imp=safeNumber(g.Importe);total+=imp;if(g.Tipo==='F')fijos+=imp;const m=getMesKey(g.Fecha)||'?';porMes[m]=(porMes[m]||0)+imp;const c=g.Centro||'?';porCentro[c]=(porCentro[c]||0)+imp;}
+  const nm=Object.keys(porMes).length||1;
+  $('dash-total').textContent='$'+formatearNumero(total);$('dash-promedio').textContent='$'+formatearNumero(total/nm);$('dash-fijos').textContent=total>0?Math.round(fijos/total*100)+'%':'0%';$('dash-count').textContent=allData.length;
+
+  const ms=Object.keys(porMes).sort();
+  destroyChart('evolucion');
+  charts.evolucion=new Chart($('chart-evolucion'),{type:'line',data:{labels:ms,datasets:[{data:ms.map(m=>porMes[m]),borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.1)',fill:true,tension:.4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+(v/1e6).toFixed(1)+'M'}}}}});
+
+  const tc=Object.entries(porCentro).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  destroyChart('centros');
+  charts.centros=new Chart($('chart-centros'),{type:'doughnut',data:{labels:tc.map(c=>c[0]),datasets:[{data:tc.map(c=>c[1]),backgroundColor:['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16']}]},options:{responsive:true,plugins:{legend:{position:'right'}}}});
+
+  const conceptos=uniqueSorted(allData.map(g=>g.Concepto));
+  $('evolucion-concepto').innerHTML='<option value="">Seleccionar...</option>'+conceptos.map(c=>`<option value="${String(c).replace(/"/g,'&quot;')}">${c}</option>`).join('');
+}
+
+function renderEvolucionConcepto() {
+  const c=$('evolucion-concepto')?.value,cv=$('chart-evolucion-concepto');if(!cv)return;
+  if(!c){destroyChart('evolucionConcepto');cv.style.display='none';$('evolucion-stats').innerHTML='';return;}
+  cv.style.display='block';
+  const d=allData.filter(g=>g.Concepto===c),pm=aggregateBy(d,g=>getMesKey(g.Fecha)||'?'),ms=Object.keys(pm).sort(),vs=ms.map(m=>pm[m]);
+  const t=vs.reduce((a,b)=>a+b,0),avg=vs.length?t/vs.length:0;
+  $('evolucion-stats').innerHTML=`<div class="bg-blue-50 rounded p-2"><div class="font-bold text-blue-600">$${formatearNumero(t)}</div><div class="text-xs">Total</div></div><div class="bg-emerald-50 rounded p-2"><div class="font-bold text-emerald-600">$${formatearNumero(avg)}</div><div class="text-xs">Promedio</div></div><div class="bg-purple-50 rounded p-2"><div class="font-bold text-purple-600">${vs.length}</div><div class="text-xs">Meses</div></div>`;
+  destroyChart('evolucionConcepto');
+  charts.evolucionConcepto=new Chart(cv,{type:'line',data:{labels:ms,datasets:[{label:c.substring(0,20),data:vs,borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,.1)',fill:true,tension:.4}]},options:{responsive:true,plugins:{legend:{display:true}},scales:{y:{ticks:{callback:v=>'$'+(v/1e3).toFixed(0)+'k'}}}}});
+}
+
+/* ========================================
+   COMPARAR
+======================================== */
+function initComparar() {
+  const ms=uniqueSorted(allData.map(g=>getMesKey(g.Fecha))).reverse();
+  const s1=$('comp-mes1'),s2=$('comp-mes2');
+  const opts='<option value="">Mes...</option>'+ms.map(m=>`<option value="${m}">${formatMesLabel(m)}</option>`).join('');
+  const p1=s1.value,p2=s2.value; s1.innerHTML=opts; s2.innerHTML=opts;
+  if(p1&&ms.includes(p1))s1.value=p1;else if(ms.length>=2)s1.value=ms[1];else if(ms.length>=1)s1.value=ms[0];
+  if(p2&&ms.includes(p2))s2.value=p2;else if(ms.length>=1)s2.value=ms[0];
+  renderComparar();
+}
+
+function renderComparar() {
+  const m1=$('comp-mes1').value,m2=$('comp-mes2').value,vista=$('comp-vista').value;
+  if(!m1||!m2){limpiarComparar();return;}
+  const d1=allData.filter(g=>g.Fecha&&g.Fecha.startsWith(m1)),d2=allData.filter(g=>g.Fecha&&g.Fecha.startsWith(m2));
+  const t1=d1.reduce((s,g)=>s+safeNumber(g.Importe),0),t2=d2.reduce((s,g)=>s+safeNumber(g.Importe),0),diff=t2-t1,pct=t1>0?(diff/t1*100):0;
+  $('comp-total1').textContent='$'+formatearNumero(t1);$('comp-total2').textContent='$'+formatearNumero(t2);
+  const de=$('comp-diff');de.textContent=`${diff>=0?'+':'-'}$${formatearNumero(Math.abs(diff))}`;de.className='text-xl md:text-2xl font-bold '+(diff>0?'comp-up':diff<0?'comp-down':'comp-neutral');
+  const pe=$('comp-pct');pe.textContent=`${pct>=0?'+':''}${pct.toFixed(1)}%`;pe.className='text-xl md:text-2xl font-bold '+(pct>0?'comp-up':pct<0?'comp-down':'comp-neutral');
+  const campo=vista==='centro'?'Centro':vista==='concepto'?'Concepto':vista==='tipo'?'Tipo':'Metodo';
+  const g1=aggregateBy(d1,g=>g[campo]||'?'),g2=aggregateBy(d2,g=>g[campo]||'?');
+  const cats=uniqueSorted([...Object.keys(g1),...Object.keys(g2)]);
+  renderTablaComp(cats,g1,g2,t1,t2); renderBarrasComp(cats,g1,g2,m1,m2); renderDonutsComp(g1,g2,m1,m2); renderNuevosElim(g1,g2);
+}
+
+function renderTablaComp(cats,g1,g2,t1,t2){
+  const tb=$('comp-tabla-body'),tf=$('comp-tabla-foot'),mx=Math.max(...cats.map(c=>Math.max(g1[c]||0,g2[c]||0)),1);
+  if(!cats.length){tb.innerHTML='<tr><td colspan="6" class="py-8 text-center text-slate-400">Sin datos</td></tr>';tf.innerHTML='';return;}
+  const sorted=cats.slice().sort((a,b)=>((g2[b]||0)+(g1[b]||0))-((g2[a]||0)+(g1[a]||0)));
+  tb.innerHTML=sorted.map(c=>{const v1=g1[c]||0,v2=g2[c]||0,d=v2-v1,p=v1>0?(d/v1*100):(v2>0?100:0),w1=Math.max(v1/mx*100,.5),w2=Math.max(v2/mx*100,.5);return`<tr class="comp-highlight-row"><td class="py-3 px-4 font-medium">${c}</td><td class="py-3 px-4 text-right font-mono text-blue-600">$${formatearNumero(v1)}</td><td class="py-3 px-4 text-right font-mono text-amber-600">$${formatearNumero(v2)}</td><td class="py-3 px-4 text-right font-mono ${d>0?'comp-up':d<0?'comp-down':'comp-neutral'}">${d>=0?'+':'-'}$${formatearNumero(Math.abs(d))}</td><td class="py-3 px-4 text-right text-sm ${p>0?'comp-up':p<0?'comp-down':'comp-neutral'}">${v1===0&&v2>0?'<span class="text-xs bg-amber-100 text-amber-700 px-1 rounded">NUEVO</span>':v2===0&&v1>0?'—':`${p>=0?'+':''}${p.toFixed(1)}%`}</td><td class="py-3 px-4 hidden md:table-cell"><div class="comp-bar-container"><div class="comp-bar comp-bar-mes1" style="width:${w1.toFixed(1)}%"></div></div><div class="comp-bar-container"><div class="comp-bar comp-bar-mes2" style="width:${w2.toFixed(1)}%"></div></div></td></tr>`;}).join('');
+  const td=t2-t1,tp=t1>0?(td/t1*100):0;
+  tf.innerHTML=`<tr><td class="py-3 px-4">TOTAL</td><td class="py-3 px-4 text-right font-mono text-blue-600">$${formatearNumero(t1)}</td><td class="py-3 px-4 text-right font-mono text-amber-600">$${formatearNumero(t2)}</td><td class="py-3 px-4 text-right font-mono ${td>0?'comp-up':td<0?'comp-down':''}">${td>=0?'+':'-'}$${formatearNumero(Math.abs(td))}</td><td class="py-3 px-4 text-right ${tp>0?'comp-up':tp<0?'comp-down':''}">${tp>=0?'+':''}${tp.toFixed(1)}%</td><td class="py-3 px-4 hidden md:table-cell"></td></tr>`;
+}
+
+function renderBarrasComp(cats,g1,g2,m1,m2){
+  const s=cats.slice().sort((a,b)=>((g2[b]||0)+(g1[b]||0))-((g2[a]||0)+(g1[a]||0))).slice(0,10);
+  destroyChart('compBarras');
+  charts.compBarras=new Chart($('chart-comp-barras'),{type:'bar',data:{labels:s.map(c=>c.length>18?c.substring(0,18)+'…':c),datasets:[{label:formatMesLabel(m1),data:s.map(c=>g1[c]||0),backgroundColor:'rgba(59,130,246,.7)',borderColor:'#3b82f6',borderWidth:1},{label:formatMesLabel(m2),data:s.map(c=>g2[c]||0),backgroundColor:'rgba(245,158,11,.7)',borderColor:'#f59e0b',borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'top'}},scales:{y:{ticks:{callback:v=>'$'+(v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'k':v)}},x:{ticks:{maxRotation:45}}}}});
+}
+
+function renderDonutsComp(g1,g2,m1,m2){
+  const col=['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+  $('comp-donut-label1').textContent=formatMesLabel(m1);$('comp-donut-label2').textContent=formatMesLabel(m2);
+  const e1=Object.entries(g1).sort((a,b)=>b[1]-a[1]),e2=Object.entries(g2).sort((a,b)=>b[1]-a[1]);
+  const t1=e1.slice(0,6),o1=e1.slice(6).reduce((s,e)=>s+e[1],0),t2=e2.slice(0,6),o2=e2.slice(6).reduce((s,e)=>s+e[1],0);
+  destroyChart('compDonut1');charts.compDonut1=new Chart($('chart-comp-donut1'),{type:'doughnut',data:{labels:t1.map(e=>e[0]).concat(o1>0?['Otros']:[]),datasets:[{data:t1.map(e=>e[1]).concat(o1>0?[o1]:[]),backgroundColor:col}]},options:{responsive:true,plugins:{legend:{display:false}}}});
+  destroyChart('compDonut2');charts.compDonut2=new Chart($('chart-comp-donut2'),{type:'doughnut',data:{labels:t2.map(e=>e[0]).concat(o2>0?['Otros']:[]),datasets:[{data:t2.map(e=>e[1]).concat(o2>0?[o2]:[]),backgroundColor:col}]},options:{responsive:true,plugins:{legend:{display:false}}}});
+}
+
+function renderNuevosElim(g1,g2){
+  const s1=Object.entries(g1).filter(([k])=>!(k in g2)).sort((a,b)=>b[1]-a[1]);
+  const s2=Object.entries(g2).filter(([k])=>!(k in g1)).sort((a,b)=>b[1]-a[1]);
+  $('comp-nuevos').innerHTML=!s2.length?'<p class="text-sm text-slate-400 italic">No hay nuevos</p>':s2.map(([k,v])=>`<div class="flex justify-between items-center p-3 bg-amber-50 rounded-lg"><span class="font-medium text-sm">${k}</span><span class="text-sm font-bold text-amber-600">$${formatearNumero(v)}</span></div>`).join('');
+  $('comp-eliminados').innerHTML=!s1.length?'<p class="text-sm text-slate-400 italic">No hay</p>':s1.map(([k,v])=>`<div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg"><span class="font-medium text-sm">${k}</span><span class="text-sm font-bold text-blue-600">$${formatearNumero(v)}</span></div>`).join('');
+}
+
+function limpiarComparar(){
+  $('comp-total1').textContent='$0';$('comp-total2').textContent='$0';
+  $('comp-diff').textContent='$0';$('comp-diff').className='text-xl md:text-2xl font-bold comp-neutral';
+  $('comp-pct').textContent='0%';$('comp-pct').className='text-xl md:text-2xl font-bold comp-neutral';
+  $('comp-tabla-body').innerHTML='<tr><td colspan="6" class="py-8 text-center text-slate-400">Seleccioná dos meses</td></tr>';
+  $('comp-tabla-foot').innerHTML='';$('comp-nuevos').innerHTML='<p class="text-sm text-slate-400 italic">Seleccioná dos meses</p>';$('comp-eliminados').innerHTML='<p class="text-sm text-slate-400 italic">Seleccioná dos meses</p>';
+  destroyChart('compBarras');destroyChart('compDonut1');destroyChart('compDonut2');
+}
+
+/* ========================================
+   CENTROS
+======================================== */
+function renderCentros(){
+  const centros=uniqueSorted(allData.map(g=>g.Centro));$('total-centros').textContent=`(${centros.length})`;
+  const st=Object.create(null);for(const g of allData){const c=g.Centro||'';if(!c)continue;if(!st[c])st[c]={n:0,t:0};st[c].n++;st[c].t+=safeNumber(g.Importe);}
+  $('lista-centros').innerHTML=centros.map(c=>`<div class="bg-white border rounded-lg p-3 flex justify-between"><div><div class="font-medium text-sm">${c}</div><div class="text-xs text-slate-500">${st[c]?.n||0} · $${formatearNumero(st[c]?.t||0)}</div></div></div>`).join('');
+  const opts='<option value="">Seleccionar...</option>'+centros.map(c=>`<option value="${c}">${c}</option>`).join('');
+  $('unificar-desde').innerHTML=opts;$('unificar-hacia').innerHTML=opts;
+}
+function agregarCentro(){const n=$('nuevo-centro').value.trim();if(!n){alert('Ingresá nombre');return;}$('centros-list').innerHTML+=`<option value="${n}">`;$('nuevo-centro').value='';toast('Centro agregado');renderCentros();}
+function unificarCentros(){alert('Función en desarrollo.');}
+
+/* ========================================
+   MISC
+======================================== */
+document.addEventListener('click',e=>{if(!e.target.closest('#concepto')&&!e.target.closest('#suggestions'))$('suggestions')?.classList.add('hidden');});
+window.addEventListener('resize',function(){clearTimeout(window.__rt);window.__rt=setTimeout(()=>{try{if(!$('section-historial')?.classList.contains('hidden'))renderHistorial();if(!$('section-dashboard')?.classList.contains('hidden'))renderDashboard();if(!$('section-comparar')?.classList.contains('hidden'))renderComparar();}catch(e){}},180);});
+</script>
+</body>
+</html>
