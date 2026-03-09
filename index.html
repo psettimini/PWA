@@ -195,9 +195,10 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-col
             <p id="avg-suggestion" class="text-xs text-slate-500 mt-1 hidden"></p>
           </div>
           <div id="acciones-carga" class="flex flex-col md:flex-row gap-3">
-            <button type="button" onclick="guardarGasto()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all"><i class="fas fa-save mr-2"></i>Guardar</button>
-            <button type="button" onclick="cargarFijosMensuales()" class="px-6 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all"><i class="fas fa-magic mr-2"></i>Cargar Fijos</button>
+            <button type="button" onclick="guardarGasto()" id="btn-guardar" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all"><i class="fas fa-save mr-2"></i>Guardar</button>
+            <button type="button" onclick="cancelarEdicion()" id="btn-cancelar" class="px-6 bg-slate-400 hover:bg-slate-500 text-white font-bold py-3 rounded-lg transition-all hidden"><i class="fas fa-times mr-2"></i>Cancelar</button>
           </div>
+          <p id="edit-indicator" class="text-xs text-amber-600 font-medium mt-1 hidden"><i class="fas fa-edit mr-1"></i>Editando registro existente</p>
         </form>
       </div>
 
@@ -351,6 +352,7 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-col
    ESTADO GLOBAL
 ======================================== */
 let allData = [], charts = {}, suggestionIndex = -1, patrones = [];
+let editingId = null;
 let API_URL = localStorage.getItem('gastos_api_url') || '';
 let API_TOKEN = localStorage.getItem('gastos_api_token') || '';
 
@@ -485,10 +487,44 @@ async function guardarGasto() {
   if (!record.Centro || !record.Concepto || record.Importe === 0) { alert('Completá los campos'); return; }
   showLoading(true);
   try {
-    const r = await apiGet('add', { data: record });
-    if (r.success) { $('concepto').value = ''; $('importe').value = ''; $('avg-suggestion')?.classList.add('hidden'); await cargarDatos(); if (navigator.vibrate) navigator.vibrate(50); toast('¡Guardado!'); }
-    else alert('Error: ' + (r.error || '?'));
+    let r;
+    if (editingId) {
+      // Actualizar registro existente
+      r = await apiPost('update', { id: editingId, record });
+    } else {
+      // Crear nuevo
+      r = await apiGet('add', { data: record });
+    }
+    if (r.success) {
+      const wasEdit = !!editingId;
+      limpiarFormulario();
+      await cargarDatos();
+      if (navigator.vibrate) navigator.vibrate(50);
+      toast(wasEdit ? '¡Actualizado!' : '¡Guardado!');
+    } else {
+      alert('Error: ' + (r.error || '?'));
+    }
   } catch (e) { alert('Error: ' + e.message); } finally { showLoading(false); }
+}
+
+function limpiarFormulario() {
+  editingId = null;
+  $('concepto').value = '';
+  $('importe').value = '';
+  $('avg-suggestion')?.classList.add('hidden');
+  $('btn-guardar').innerHTML = '<i class="fas fa-save mr-2"></i>Guardar';
+  $('btn-guardar').className = 'flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all';
+  $('btn-cancelar').classList.add('hidden');
+  $('edit-indicator').classList.add('hidden');
+}
+
+function cancelarEdicion() {
+  limpiarFormulario();
+  $('fecha').valueAsDate = new Date();
+  $('centro').value = '';
+  $('tipo').value = 'F';
+  $('metodo').value = 'Macro Manual';
+  toast('Edición cancelada');
 }
 
 async function borrarGasto(id, concepto) {
@@ -611,8 +647,6 @@ function actualizarResumen() {
   $('resumen-promedio').textContent = '$'+formatearNumero(cant?total/cant:0);
 }
 
-function cargarFijosMensuales() { alert(`${patrones.filter(p=>p.tipo==='F'&&p.frecuencia>=2).length} gastos fijos encontrados.\n\nPróximamente: carga automática.`); }
-
 /* ========================================
    HISTORIAL
 ======================================== */
@@ -642,7 +676,16 @@ function renderHistorial() {
 function filtrarHistorial(){renderHistorial();}
 function limpiarFiltros(){$('buscar-historial').value='';$('filtro-centro').value='todos';$('filtro-tipo').value='todos';$('filtro-metodo').value='todos';$('filtro-mes-historial').value='todos';renderHistorial();}
 function exportarHistorialFiltrado(){const f=getFiltrados();let csv='Fecha,Centro,Tipo,Concepto,Metodo,Importe\n';for(const g of f)csv+=[csvEscape(g.Fecha),csvEscape(g.Centro),csvEscape(g.Tipo),csvEscape(g.Concepto),csvEscape(g.Metodo),csvEscape(g.Importe||0)].join(',')+'\n';descargarCSV('historial.csv',csv);}
-function editarGasto(id){const g=allData.find(x=>x.ID===id);if(!g)return;$('fecha').value=g.Fecha||'';$('centro').value=g.Centro||'';$('concepto').value=g.Concepto||'';$('tipo').value=g.Tipo||'V';$('metodo').value=g.Metodo||'Efectivo';$('importe').value=g.Importe||'';showTab('carga');toast('Editá y guardá');}
+function editarGasto(id){
+  const g=allData.find(x=>x.ID===id);if(!g)return;
+  editingId = id;
+  $('fecha').value=g.Fecha||'';$('centro').value=g.Centro||'';$('concepto').value=g.Concepto||'';$('tipo').value=g.Tipo||'V';$('metodo').value=g.Metodo||'Efectivo';$('importe').value=g.Importe||'';
+  $('btn-guardar').innerHTML='<i class="fas fa-check mr-2"></i>Actualizar';
+  $('btn-guardar').className='flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all';
+  $('btn-cancelar').classList.remove('hidden');
+  $('edit-indicator').classList.remove('hidden');
+  showTab('carga');
+}
 function exportarCSV(){let csv='Fecha,Centro,Tipo,Concepto,Metodo,Importe,ID\n';for(const g of allData)csv+=[csvEscape(g.Fecha),csvEscape(g.Centro),csvEscape(g.Tipo),csvEscape(g.Concepto),csvEscape(g.Metodo),csvEscape(g.Importe||0),csvEscape(g.ID)].join(',')+'\n';descargarCSV('gastos.csv',csv);}
 
 /* ========================================
