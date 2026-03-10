@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Gastos">
-  <meta name="theme-color" content="#1e40af">
+  <meta name="theme-color" content="#ffffff">
   <title>Gestión de Gastos</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%231e40af'/%3E%3Ctext x='256' y='340' text-anchor='middle' font-size='280' font-family='Arial' fill='white'%3E$%3C/text%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -34,15 +36,18 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-col
 .no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
 
 /* Mobile cards historial */
-.hist-card{background:#fff;border:1px solid #e2e8f0;border-radius:.85rem;padding:.85rem;box-shadow:0 1px 4px rgba(15,23,42,.03)}
+.hist-swipe-wrapper{position:relative;overflow:hidden;border-radius:.85rem;margin-bottom:.1rem}
+.hist-swipe-bg{position:absolute;inset:0;display:flex;align-items:stretch}
+.hist-swipe-bg-edit{flex:1;background:#3b82f6;display:flex;align-items:center;padding-left:1.2rem;color:#fff;font-weight:600;font-size:.85rem;gap:.4rem}
+.hist-swipe-bg-delete{flex:1;background:#ef4444;display:flex;align-items:center;justify-content:flex-end;padding-right:1.2rem;color:#fff;font-weight:600;font-size:.85rem;gap:.4rem}
+.hist-card{background:#fff;border:1px solid #e2e8f0;border-radius:.85rem;padding:.85rem;box-shadow:0 1px 4px rgba(15,23,42,.03);position:relative;z-index:1;transition:transform .2s ease;touch-action:pan-y}
+.hist-card.swiping{transition:none}
 .hist-card-top{display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start}
 .hist-card-title{font-weight:700;color:#1e293b;line-height:1.2}
 .hist-card-sub{font-size:.75rem;color:#64748b;margin-top:.2rem}
 .hist-card-amount{font-weight:700;white-space:nowrap}
 .hist-card-meta{margin-top:.55rem;display:flex;flex-wrap:wrap;gap:.35rem}
 .hist-pill{font-size:.72rem;padding:.18rem .45rem;border-radius:999px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
-.hist-card-actions{margin-top:.6rem;display:flex;gap:.45rem}
-.hist-card-actions button{flex:1;min-height:42px;border-radius:.7rem;font-size:.88rem;border:1px solid #e2e8f0;background:#fff}
 
 /* Toast */
 .toast{position:fixed;top:5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.65rem 1.5rem;border-radius:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60;font-size:.9rem;font-weight:500;animation:fadeIn .3s ease;max-width:90vw;text-align:center}
@@ -798,7 +803,10 @@ function renderHistorial() {
 
   tbody.innerHTML = top.map(g=>`<tr class="hover:bg-slate-50"><td class="py-3 px-4">${g.Fecha||'-'}</td><td class="py-3 px-4 font-medium">${g.Centro||''}</td><td class="py-3 px-4">${g.Concepto||''}</td><td class="py-3 px-4"><span class="px-2 py-1 rounded text-xs ${g.Tipo==='F'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${g.Tipo||''}</span></td><td class="py-3 px-4 text-xs text-slate-500">${g.Metodo||''}</td><td class="py-3 px-4 text-right font-mono">$${formatearNumero(g.Importe)}</td><td class="py-3 px-4 text-center"><button onclick="editarGasto('${g.ID}')" class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="borrarGasto('${g.ID}','${escapeAttr(g.Concepto)}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
 
-  if (mob) mob.innerHTML = top.map(g=>`<div class="hist-card"><div class="hist-card-top"><div><div class="hist-card-title">${g.Concepto||''}</div><div class="hist-card-sub">${g.Fecha||'-'} · ${g.Centro||''}</div></div><div class="hist-card-amount ${g.Tipo==='F'?'text-emerald-700':'text-amber-700'}">$${formatearNumero(g.Importe)}</div></div><div class="hist-card-meta"><span class="hist-pill">${g.Tipo==='F'?'Fijo':'Variable'}</span><span class="hist-pill">${g.Metodo||''}</span></div><div class="hist-card-actions"><button onclick="editarGasto('${g.ID}')"><i class="fas fa-edit mr-1"></i>Editar</button><button onclick="borrarGasto('${g.ID}','${escapeAttr(g.Concepto)}')" class="text-red-600"><i class="fas fa-trash mr-1"></i>Borrar</button></div></div>`).join('');
+  if (mob) {
+    mob.innerHTML = top.map(g=>`<div class="hist-swipe-wrapper"><div class="hist-swipe-bg"><div class="hist-swipe-bg-edit"><i class="fas fa-edit"></i> Editar</div><div class="hist-swipe-bg-delete">Borrar <i class="fas fa-trash"></i></div></div><div class="hist-card" data-id="${g.ID}" data-concepto="${escapeAttr(g.Concepto)}"><div class="hist-card-top"><div><div class="hist-card-title">${g.Concepto||''}</div><div class="hist-card-sub">${g.Fecha||'-'} · ${g.Centro||''}</div></div><div class="hist-card-amount ${g.Tipo==='F'?'text-emerald-700':'text-amber-700'}">$${formatearNumero(g.Importe)}</div></div><div class="hist-card-meta"><span class="hist-pill">${g.Tipo==='F'?'Fijo':'Variable'}</span><span class="hist-pill">${g.Metodo||''}</span></div></div></div>`).join('');
+    initSwipeCards();
+  }
 }
 
 function filtrarHistorial(){renderHistorial();}
@@ -940,6 +948,73 @@ function renderCentros(){
 }
 function agregarCentro(){const n=$('nuevo-centro').value.trim();if(!n){toastWarn('Ingresá nombre');return;}$('centros-list').innerHTML+=`<option value="${n}">`;$('nuevo-centro').value='';toast('Centro agregado');renderCentros();}
 function unificarCentros(){toastWarn('Función en desarrollo.');}
+
+/* ========================================
+   SWIPE CARDS (historial mobile)
+======================================== */
+function initSwipeCards() {
+  const cards = document.querySelectorAll('.hist-card[data-id]');
+  cards.forEach(card => {
+    let startX = 0, currentX = 0, swiping = false;
+    const threshold = 80, maxSwipe = 120;
+
+    card.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      currentX = 0;
+      swiping = true;
+      card.classList.add('swiping');
+    }, { passive: true });
+
+    card.addEventListener('touchmove', (e) => {
+      if (!swiping) return;
+      currentX = e.touches[0].clientX - startX;
+      // Clamp between -maxSwipe and +maxSwipe with resistance
+      const clamped = currentX > 0
+        ? Math.min(currentX * 0.7, maxSwipe)
+        : Math.max(currentX * 0.7, -maxSwipe);
+      card.style.transform = `translateX(${clamped}px)`;
+    }, { passive: true });
+
+    card.addEventListener('touchend', async () => {
+      if (!swiping) return;
+      swiping = false;
+      card.classList.remove('swiping');
+      const moved = currentX * 0.7;
+
+      if (moved > threshold) {
+        // Swipe right → editar
+        card.style.transform = `translateX(${maxSwipe}px)`;
+        setTimeout(() => { card.style.transform = ''; editarGasto(card.dataset.id); }, 200);
+      } else if (moved < -threshold) {
+        // Swipe left → borrar
+        card.style.transform = `translateX(-${maxSwipe}px)`;
+        const id = card.dataset.id;
+        const concepto = card.dataset.concepto;
+        const ok = await modalConfirm(`¿Borrar "${concepto}"?`);
+        if (ok) {
+          card.style.transform = `translateX(-100%)`;
+          card.style.opacity = '0';
+          await borrarGasto_direct(id);
+        } else {
+          card.style.transform = '';
+        }
+      } else {
+        card.style.transform = '';
+      }
+    });
+  });
+}
+
+// Borrar sin re-confirmar (ya se confirmó en el swipe)
+async function borrarGasto_direct(id) {
+  showLoading(true);
+  try {
+    const r = await apiGet('delete', { id });
+    if (r.success) { await cargarDatos(); toast('Borrado'); }
+    else toastError(r.error);
+  } catch (e) { toastError(e.message); }
+  finally { showLoading(false); }
+}
 
 /* ========================================
    MISC
