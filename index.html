@@ -400,6 +400,33 @@ function formatMesLabel(m) {
   return `${n[parseInt(ms,10)-1]} ${a}`;
 }
 
+function getDateGroupLabel(fechaStr) {
+  if (!fechaStr) return 'Sin fecha';
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fecha = new Date(fechaStr + 'T00:00:00'); fecha.setHours(0,0,0,0);
+  const diffMs = hoy - fecha;
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  if (diffDays >= 2 && diffDays <= 6) {
+    const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    return dias[fecha.getDay()];
+  }
+  if (diffDays >= 7 && diffDays <= 13) return 'Semana pasada';
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const anioFecha = fecha.getFullYear(), anioHoy = hoy.getFullYear();
+  if (anioFecha === anioHoy) return meses[fecha.getMonth()];
+  return `${meses[fecha.getMonth()]} ${anioFecha}`;
+}
+
+function formatFechaCorta(fechaStr) {
+  if (!fechaStr) return '-';
+  const fecha = new Date(fechaStr + 'T00:00:00');
+  const d = fecha.getDate();
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${d} ${meses[fecha.getMonth()]}`;
+}
+
 function aggregateBy(items, keyFn, valFn = x => safeNumber(x.Importe)) {
   const acc = Object.create(null);
   for (const i of items) { const k = keyFn(i); acc[k] = (acc[k]||0) + valFn(i); }
@@ -581,14 +608,38 @@ async function cargarDatos() {
 async function guardarGasto() {
   const record = { Fecha: $('fecha').value, Centro: $('centro').value, Tipo: $('tipo').value, Concepto: $('concepto').value, Metodo: $('metodo').value, Importe: safeNumber($('importe').value) };
   if (!record.Centro || !record.Concepto || record.Importe === 0) { toastWarn('Completá los campos'); return; }
+
+  // Detección de duplicados (solo para nuevos, no ediciones)
+  if (!editingId) {
+    const mesActual = record.Fecha ? record.Fecha.slice(0,7) : new Date().toISOString().slice(0,7);
+    const conceptoLow = record.Concepto.toLowerCase();
+    const centroLow = record.Centro.toLowerCase();
+    // Conceptos que pueden repetirse naturalmente
+    const repetibles = ['transferencia','transfer','envío','envio','retiro','carga'];
+    const esRepetible = repetibles.some(r => conceptoLow.includes(r));
+
+    const dupes = allData.filter(g =>
+      g.Fecha && g.Fecha.startsWith(mesActual) &&
+      (g.Concepto||'').toLowerCase() === conceptoLow &&
+      (g.Centro||'').toLowerCase() === centroLow
+    );
+
+    if (dupes.length > 0) {
+      const importesDupes = dupes.map(d => '$' + formatearNumero(d.Importe)).join(', ');
+      const msg = esRepetible
+        ? `Ya tenés ${dupes.length} "${record.Concepto}" este mes (${importesDupes}). ¿Cargar otro?`
+        : `Ya existe "${record.Concepto}" en ${record.Centro} este mes (${importesDupes}). ¿Cargar igual?`;
+      const ok = await modalConfirm(msg);
+      if (!ok) return;
+    }
+  }
+
   showLoading(true);
   try {
     let r;
     if (editingId) {
-      // Actualizar registro existente
       r = await apiPost('update', { id: editingId, record });
     } else {
-      // Crear nuevo
       r = await apiGet('add', { data: record });
     }
     if (r.success) {
@@ -766,11 +817,47 @@ function actualizarSugerencias() {
         const color = up ? 'text-red-500' : down ? 'text-emerald-500' : 'text-slate-400';
         varHtml = `<span class="text-xs ${color} ml-1">${arrow}${Math.abs(s.variacion).toFixed(0)}%</span>`;
       }
-      return `<div class="flex justify-between items-center p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer transition-colors" onclick="seleccionarFijo('${escapeAttr(s.concepto)}','${escapeAttr(s.centro)}','${escapeAttr(s.tipo)}','${escapeAttr(s.metodo)}',${s.importe})"><div class="min-w-0 flex-1 mr-2"><div class="font-medium text-sm truncate">${s.concepto}</div><div class="text-xs text-slate-500 truncate">${s.centro}</div></div><div class="text-right whitespace-nowrap"><div class="text-sm font-bold text-amber-700">$${formatearNumero(s.importe)}${varHtml}</div></div></div>`;
+      return `<div class="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg transition-colors">
+        <div class="min-w-0 flex-1 cursor-pointer hover:bg-amber-100 rounded-lg" onclick="seleccionarFijo('${escapeAttr(s.concepto)}','${escapeAttr(s.centro)}','${escapeAttr(s.tipo)}','${escapeAttr(s.metodo)}',${s.importe})">
+          <div class="font-medium text-sm truncate">${s.concepto}</div>
+          <div class="text-xs text-slate-500 truncate">${s.centro}</div>
+        </div>
+        <div class="text-right whitespace-nowrap">
+          <div class="text-sm font-bold text-amber-700">$${formatearNumero(s.importe)}${varHtml}</div>
+        </div>
+        <button onclick="guardarFijoRapido('${escapeAttr(s.concepto)}','${escapeAttr(s.centro)}','${escapeAttr(s.tipo)}','${escapeAttr(s.metodo)}',${s.importe},this)" class="ml-1 w-9 h-9 flex-shrink-0 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm" title="Cargar directo"><i class="fas fa-bolt"></i></button>
+      </div>`;
     }).join('');
 }
 
 function seleccionarFijo(c,ce,t,m,i) { $('concepto').value=c; $('centro').value=ce; $('tipo').value=t; $('metodo').value=m; $('importe').value=i; $('suggestions').classList.add('hidden'); $('avg-suggestion').classList.add('hidden'); $('importe').focus(); }
+
+async function guardarFijoRapido(concepto, centro, tipo, metodo, importe, btn) {
+  const fecha = new Date().toISOString().slice(0,10);
+  const record = { Fecha: fecha, Centro: centro, Tipo: tipo, Concepto: concepto, Metodo: metodo, Importe: importe };
+  // Visual feedback
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
+  try {
+    const r = await apiGet('add', { data: record });
+    if (r.success) {
+      btn.innerHTML = '<i class="fas fa-check"></i>';
+      btn.className = btn.className.replace('bg-emerald-500 hover:bg-emerald-600','bg-slate-300');
+      if (navigator.vibrate) navigator.vibrate(50);
+      toast(`${concepto} guardado`);
+      setTimeout(() => cargarDatos(), 600);
+    } else {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+      toastError(r.error || 'Error');
+    }
+  } catch (e) {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    toastError(e.message);
+  }
+}
 
 function actualizarResumen() {
   const mes = new Date().toISOString().slice(0,7); let total=0, cant=0;
@@ -804,7 +891,18 @@ function renderHistorial() {
   tbody.innerHTML = top.map(g=>`<tr class="hover:bg-slate-50"><td class="py-3 px-4">${g.Fecha||'-'}</td><td class="py-3 px-4 font-medium">${g.Centro||''}</td><td class="py-3 px-4">${g.Concepto||''}</td><td class="py-3 px-4"><span class="px-2 py-1 rounded text-xs ${g.Tipo==='F'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${g.Tipo||''}</span></td><td class="py-3 px-4 text-xs text-slate-500">${g.Metodo||''}</td><td class="py-3 px-4 text-right font-mono">$${formatearNumero(g.Importe)}</td><td class="py-3 px-4 text-center"><button onclick="editarGasto('${g.ID}')" class="text-blue-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="borrarGasto('${g.ID}','${escapeAttr(g.Concepto)}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
 
   if (mob) {
-    mob.innerHTML = top.map(g=>`<div class="hist-swipe-wrapper"><div class="hist-swipe-bg"><div class="hist-swipe-bg-edit"><i class="fas fa-edit"></i> Editar</div><div class="hist-swipe-bg-delete">Borrar <i class="fas fa-trash"></i></div></div><div class="hist-card" data-id="${g.ID}" data-concepto="${escapeAttr(g.Concepto)}"><div class="hist-card-top"><div><div class="hist-card-title">${g.Concepto||''}</div><div class="hist-card-sub">${g.Fecha||'-'} · ${g.Centro||''}</div></div><div class="hist-card-amount ${g.Tipo==='F'?'text-emerald-700':'text-amber-700'}">$${formatearNumero(g.Importe)}</div></div><div class="hist-card-meta"><span class="hist-pill">${g.Tipo==='F'?'Fijo':'Variable'}</span><span class="hist-pill">${g.Metodo||''}</span></div></div></div>`).join('');
+    // Agrupar por fecha con labels inteligentes
+    let lastGroup = '';
+    let html = '';
+    for (const g of top) {
+      const group = getDateGroupLabel(g.Fecha);
+      if (group !== lastGroup) {
+        html += `<div class="flex items-center gap-2 mt-3 mb-1 first:mt-0"><span class="text-xs font-bold text-slate-500 uppercase tracking-wide">${group}</span><span class="flex-1 border-t border-slate-200"></span></div>`;
+        lastGroup = group;
+      }
+      html += `<div class="hist-swipe-wrapper"><div class="hist-swipe-bg"><div class="hist-swipe-bg-edit"><i class="fas fa-edit"></i> Editar</div><div class="hist-swipe-bg-delete">Borrar <i class="fas fa-trash"></i></div></div><div class="hist-card" data-id="${g.ID}" data-concepto="${escapeAttr(g.Concepto)}"><div class="hist-card-top"><div><div class="hist-card-title">${g.Concepto||''}</div><div class="hist-card-sub">${formatFechaCorta(g.Fecha)} · ${g.Centro||''}</div></div><div class="hist-card-amount ${g.Tipo==='F'?'text-emerald-700':'text-amber-700'}">$${formatearNumero(g.Importe)}</div></div><div class="hist-card-meta"><span class="hist-pill">${g.Tipo==='F'?'Fijo':'Variable'}</span><span class="hist-pill">${g.Metodo||''}</span></div></div></div>`;
+    }
+    mob.innerHTML = html;
     initSwipeCards();
   }
 }
