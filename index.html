@@ -45,7 +45,24 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-col
 .hist-card-actions button{flex:1;min-height:42px;border-radius:.7rem;font-size:.88rem;border:1px solid #e2e8f0;background:#fff}
 
 /* Toast */
-.toast{position:fixed;top:5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.65rem 1.5rem;border-radius:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60;font-size:.9rem;font-weight:500;animation:fadeIn .3s ease}
+.toast{position:fixed;top:5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.65rem 1.5rem;border-radius:.75rem;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:60;font-size:.9rem;font-weight:500;animation:fadeIn .3s ease;max-width:90vw;text-align:center}
+.toast-error{background:#dc2626}
+.toast-warn{background:#d97706}
+
+/* Modal confirm */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:center;justify-content:center;z-index:55;animation:fadeIn .2s ease}
+.modal-box{background:#fff;border-radius:1.25rem;padding:1.5rem;max-width:20rem;width:90%;box-shadow:0 20px 40px rgba(0,0,0,.2);text-align:center}
+.modal-msg{font-size:.95rem;color:#334155;margin-bottom:1.25rem;line-height:1.4}
+.modal-btns{display:flex;gap:.75rem}
+.modal-btns button{flex:1;padding:.75rem;border-radius:.75rem;font-weight:600;font-size:.9rem;border:none;cursor:pointer}
+.modal-btn-cancel{background:#e2e8f0;color:#475569}
+.modal-btn-ok{background:#dc2626;color:#fff}
+
+/* Pull to refresh */
+#pull-indicator{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;z-index:35;pointer-events:none;transition:transform .2s ease}
+#pull-indicator>div{background:#fff;border:1px solid #e2e8f0;border-radius:0 0 1rem 1rem;padding:.5rem 1rem;box-shadow:0 4px 12px rgba(0,0,0,.08);font-size:.8rem;color:#64748b;display:flex;align-items:center;gap:.4rem}
+#pull-indicator .spinner{display:none;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ===== MOBILE ===== */
 @media(max-width:768px){
@@ -92,6 +109,11 @@ body{font-family:'Inter',sans-serif;background:#f1f5f9;-webkit-tap-highlight-col
 <!-- Loading -->
 <div id="loading" class="fixed inset-0 bg-white/80 flex items-center justify-center z-40 hidden">
   <div class="flex items-center gap-3"><i class="fas fa-circle-notch fa-spin text-3xl text-blue-600"></i><span class="text-lg font-medium text-slate-700">Cargando...</span></div>
+</div>
+
+<!-- Pull to refresh -->
+<div id="pull-indicator" style="transform:translateY(-100%)">
+  <div><i id="pull-arrow" class="fas fa-arrow-down"></i><i id="pull-spin" class="fas fa-sync spinner"></i><span id="pull-text">Soltar para actualizar</span></div>
 </div>
 
 <!-- Setup -->
@@ -379,13 +401,82 @@ function aggregateBy(items, keyFn, valFn = x => safeNumber(x.Importe)) {
   return acc;
 }
 
-function toast(msg) {
+function toast(msg, duration = 1800) {
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 1500);
-  setTimeout(() => t.remove(), 1800);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, duration - 300);
+  setTimeout(() => t.remove(), duration);
 }
+
+function toastError(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-error'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 2700);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function toastWarn(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-warn'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 2200);
+  setTimeout(() => t.remove(), 2500);
+}
+
+function modalConfirm(msg) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box"><p class="modal-msg">${msg}</p><div class="modal-btns"><button class="modal-btn-cancel" id="modal-no">Cancelar</button><button class="modal-btn-ok" id="modal-si">Confirmar</button></div></div>`;
+    document.body.appendChild(overlay);
+    const close = (val) => { overlay.style.opacity = '0'; overlay.style.transition = 'opacity .2s'; setTimeout(() => overlay.remove(), 200); resolve(val); };
+    overlay.querySelector('#modal-no').onclick = () => close(false);
+    overlay.querySelector('#modal-si').onclick = () => close(true);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+  });
+}
+
+/* Pull to refresh */
+let _ptr = { startY: 0, pulling: false, threshold: 80 };
+document.addEventListener('touchstart', (e) => {
+  const setupHidden = $('setup-overlay')?.classList.contains('hidden');
+  if (window.scrollY === 0 && setupHidden) {
+    _ptr.startY = e.touches[0].clientY;
+    _ptr.pulling = true;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (!_ptr.pulling || window.scrollY > 0) { _ptr.pulling = false; return; }
+  const dy = e.touches[0].clientY - _ptr.startY;
+  if (dy > 0 && dy < 150) {
+    const pct = Math.min(dy / _ptr.threshold, 1);
+    $('pull-indicator').style.transform = `translateY(${-100 + pct * 100}%)`;
+    $('pull-text').textContent = dy >= _ptr.threshold ? 'Soltar para actualizar' : 'Deslizá para actualizar';
+    $('pull-arrow').style.transform = dy >= _ptr.threshold ? 'rotate(180deg)' : '';
+    $('pull-arrow').style.display = '';
+    $('pull-spin').style.display = 'none';
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', async () => {
+  if (!_ptr.pulling) return;
+  const indicator = $('pull-indicator');
+  const dy = parseFloat(indicator.style.transform.replace(/[^0-9.-]/g, ''));
+  if (dy >= -10) {
+    // Triggered
+    $('pull-arrow').style.display = 'none';
+    $('pull-spin').style.display = '';
+    $('pull-text').textContent = 'Actualizando...';
+    indicator.style.transform = 'translateY(0)';
+    await cargarDatos();
+    toast('Datos actualizados');
+  }
+  setTimeout(() => { indicator.style.transform = 'translateY(-100%)'; }, 300);
+  _ptr.pulling = false;
+});
 
 function descargarCSV(nombre, contenido) {
   const blob = new Blob([contenido], { type: 'text/csv' });
@@ -431,8 +522,8 @@ function checkSetup() {
 function saveSetup() {
   const url = $('setup-url').value.trim();
   const token = $('setup-token').value.trim();
-  if (!url.startsWith('https://script.google.com/')) { alert('URL inválida'); return; }
-  if (!token) { alert('Ingresá una clave'); return; }
+  if (!url.startsWith('https://script.google.com/')) { toastError('URL inválida'); return; }
+  if (!token) { toastWarn('Ingresá una clave'); return; }
   API_URL = url; API_TOKEN = token;
   localStorage.setItem('gastos_api_url', url);
   localStorage.setItem('gastos_api_token', token);
@@ -443,7 +534,7 @@ function saveSetup() {
 
 function saveUrlFromConfig() { API_URL = $('config-api-url').value.trim(); localStorage.setItem('gastos_api_url', API_URL); toast('URL guardada'); }
 function saveTokenFromConfig() { API_TOKEN = $('config-token').value.trim(); localStorage.setItem('gastos_api_token', API_TOKEN); toast('Token guardado'); }
-function borrarConfig() { if (!confirm('¿Borrar configuración?')) return; localStorage.clear(); location.reload(); }
+async function borrarConfig() { const ok = await modalConfirm('¿Borrar configuración?'); if (!ok) return; localStorage.clear(); location.reload(); }
 
 /* ========================================
    INIT
@@ -463,8 +554,8 @@ async function cargarDatos() {
   try {
     const result = await apiGet('getAll');
     if (result.error) {
-      if (result.error.includes('Token')) { alert('Clave incorrecta'); borrarConfig(); return; }
-      alert('Error: ' + result.error);
+      if (result.error.includes('Token')) { toastError('Clave incorrecta'); borrarConfig(); return; }
+      toastError('Error: ' + result.error);
       $('connection-status').textContent = 'Error';
       $('connection-status').className = 'text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full';
       return;
@@ -484,7 +575,7 @@ async function cargarDatos() {
 ======================================== */
 async function guardarGasto() {
   const record = { Fecha: $('fecha').value, Centro: $('centro').value, Tipo: $('tipo').value, Concepto: $('concepto').value, Metodo: $('metodo').value, Importe: safeNumber($('importe').value) };
-  if (!record.Centro || !record.Concepto || record.Importe === 0) { alert('Completá los campos'); return; }
+  if (!record.Centro || !record.Concepto || record.Importe === 0) { toastWarn('Completá los campos'); return; }
   showLoading(true);
   try {
     let r;
@@ -502,9 +593,9 @@ async function guardarGasto() {
       if (navigator.vibrate) navigator.vibrate(50);
       toast(wasEdit ? '¡Actualizado!' : '¡Guardado!');
     } else {
-      alert('Error: ' + (r.error || '?'));
+      toastError('Error: ' + (r.error || '?'));
     }
-  } catch (e) { alert('Error: ' + e.message); } finally { showLoading(false); }
+  } catch (e) { toastError('Error: ' + e.message); } finally { showLoading(false); }
 }
 
 function limpiarFormulario() {
@@ -528,10 +619,11 @@ function cancelarEdicion() {
 }
 
 async function borrarGasto(id, concepto) {
-  if (!confirm(`¿Borrar "${concepto}"?`)) return;
+  const ok = await modalConfirm(`¿Borrar "${concepto}"?`);
+  if (!ok) return;
   showLoading(true);
-  try { const r = await apiGet('delete', { id }); if (r.success) { await cargarDatos(); toast('Borrado'); } else alert(r.error); }
-  catch (e) { alert(e.message); } finally { showLoading(false); }
+  try { const r = await apiGet('delete', { id }); if (r.success) { await cargarDatos(); toast('Borrado'); } else toastError(r.error); }
+  catch (e) { toastError(e.message); } finally { showLoading(false); }
 }
 
 /* ========================================
@@ -846,8 +938,8 @@ function renderCentros(){
   const opts='<option value="">Seleccionar...</option>'+centros.map(c=>`<option value="${c}">${c}</option>`).join('');
   $('unificar-desde').innerHTML=opts;$('unificar-hacia').innerHTML=opts;
 }
-function agregarCentro(){const n=$('nuevo-centro').value.trim();if(!n){alert('Ingresá nombre');return;}$('centros-list').innerHTML+=`<option value="${n}">`;$('nuevo-centro').value='';toast('Centro agregado');renderCentros();}
-function unificarCentros(){alert('Función en desarrollo.');}
+function agregarCentro(){const n=$('nuevo-centro').value.trim();if(!n){toastWarn('Ingresá nombre');return;}$('centros-list').innerHTML+=`<option value="${n}">`;$('nuevo-centro').value='';toast('Centro agregado');renderCentros();}
+function unificarCentros(){toastWarn('Función en desarrollo.');}
 
 /* ========================================
    MISC
